@@ -1,0 +1,18 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+
+# Ключ подписи и пароли не публикуются
+keystore.properties
+*.jks
+*.keystore
+
+# Локальные артефакты
+*.log
+dist/

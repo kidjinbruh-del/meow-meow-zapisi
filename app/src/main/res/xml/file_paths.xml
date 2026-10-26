@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Снимки лежат во внутренней папке приложения и наружу отдаются по одному URI. -->
+    <files-path name="photos" path="photos/" />
+</paths>
