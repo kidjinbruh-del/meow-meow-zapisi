@@ -161,6 +161,35 @@ class RepositoryTest {
     }
 
     @Test
+    fun photosCanBePinnedInBatchAndSortFirst() = runBlocking {
+        val id = repository.createOrder()
+        val first = repository.newPhotoFile(id)
+        writeJpeg(first)
+        repository.attachPhoto(id, first)
+        Thread.sleep(5)
+        val second = repository.newPhotoFile(id)
+        writeJpeg(second)
+        repository.attachPhoto(id, second)
+
+        var photos = repository.observePhotos(id).first()
+        assertEquals(listOf(first.name, second.name), photos.map { it.fileName })
+
+        // Закрепляем сразу оба снимка — верх должен стать закреплённым.
+        repository.setPhotosPinned(photos, true)
+        photos = repository.observePhotos(id).first()
+        assertEquals(2, photos.count { it.isPinned })
+
+        repository.setPhotosPinned(photos.filter { it.fileName == first.name }, false)
+        photos = repository.observePhotos(id).first()
+        assertEquals(second.name, photos.first().fileName)
+        assertTrue(photos.first().isPinned)
+        assertFalse(photos.first { it.fileName == first.name }.isPinned)
+
+        photos.forEach { repository.deletePhoto(it) }
+        assertTrue(repository.observePhotos(id).first().isEmpty())
+    }
+
+    @Test
     fun emptyPhotoFileIsIgnored() = runBlocking {
         val id = repository.createOrder()
         val empty = repository.newPhotoFile(id)
@@ -188,6 +217,66 @@ class RepositoryTest {
         assertTrue(repository.observeParts(id).first().isEmpty())
         assertTrue(repository.observePhotos(id).first().isEmpty())
         assertFalse(file.exists())
+    }
+
+    @Test
+    fun archiveRestoresOrderChildrenAndPhoto() = runBlocking {
+        val id = repository.createOrder()
+        repository.save(repository.getOrder(id)!!.copy(model = "LG WD-10480", clientName = "Анна"))
+        repository.addPart(id, "Насос", quantity = 2)
+        val file = repository.newPhotoFile(id)
+        writeJpeg(file)
+        repository.attachPhoto(id, file)
+
+        val json = repository.exportJson()
+        assertTrue(json.contains("meow-meow-zapisi"))
+
+        // Мастер успел почистить карточку — импорт должен вернуть данные.
+        repository.deletePart(repository.observeParts(id).first().single())
+        repository.save(repository.getOrder(id)!!.copy(model = ""))
+
+        val report = repository.importJson(json)
+
+        assertEquals(1, report.orders)
+        assertEquals(1, report.parts)
+        assertEquals(1, report.photos)
+        assertEquals(0, report.photosMissing)
+        assertEquals("LG WD-10480", repository.getOrder(id)!!.model)
+        assertEquals("Насос", repository.observeParts(id).first().single().name)
+        assertEquals(3, repository.observeChecklist(id).first().size)
+        assertEquals(file.name, repository.observePhotos(id).first().single().fileName)
+
+        repository.deleteOrder(id)
+    }
+
+    @Test
+    fun archiveRecreatesOrderButSkipsPhotosWithoutFiles() = runBlocking {
+        val id = repository.createOrder()
+        val file = repository.newPhotoFile(id)
+        writeJpeg(file)
+        repository.attachPhoto(id, file)
+        val json = repository.exportJson()
+
+        // Заказ удалён целиком, вместе с файлом снимка.
+        repository.deleteOrder(id)
+        assertFalse(file.exists())
+
+        val report = repository.importJson(json)
+
+        assertEquals(1, report.orders)
+        assertEquals(0, report.photos)
+        assertEquals(1, report.photosMissing)
+        assertNotNull(repository.getOrder(id))
+        assertTrue(repository.observePhotos(id).first().isEmpty())
+
+        repository.deleteOrder(id)
+    }
+
+    @Test
+    fun importRejectsForeignJson() = runBlocking {
+        val result = runCatching { repository.importJson("""{"hello":"world"}""") }
+
+        assertTrue(result.isFailure)
     }
 
     private fun writeJpeg(file: File) {

@@ -130,8 +130,65 @@ class OrderRepository(context: Context, private val dao: OrderDao) {
         touch(photo.orderId)
     }
 
+    /** Закрепить или открепить сразу несколько снимков. */
+    suspend fun setPhotosPinned(photos: List<PhotoEntity>, pinned: Boolean) {
+        if (photos.isEmpty()) return
+        dao.setPhotosPinned(photos.map { it.id }, pinned)
+        touch(photos.first().orderId)
+    }
+
     suspend fun setPhotoCaption(photo: PhotoEntity, caption: String) {
         dao.updatePhotoCaption(photo.id, caption.trim())
+    }
+
+    // --- архив ---
+
+    /** Согласованный снимок всех таблиц: читаем одной серией запросов. */
+    suspend fun snapshot(): BackupData = BackupData(
+        orders = dao.allOrders(),
+        checklist = dao.allChecklist(),
+        parts = dao.allParts(),
+        photos = dao.allPhotos(),
+    )
+
+    /** Текст архива; экран сам решает, в какой файл его положить. */
+    suspend fun exportJson(): String = BackupJson.encode(snapshot())
+
+    /**
+     * Импорт архива.
+     *
+     * Записи с тем же `id` обновляются, новые добавляются, лишние локальные
+     * остаются на месте — импорт не может стереть работу, которой не было
+     * в архиве. Поэтому же `@Upsert`, а не замена таблиц.
+     *
+     * Фото подтягиваем только те, чей файл уже лежит в `files/photos`:
+     * сам архив снимков не содержит. Вложенные записи без своего заказа
+     * отбрасываем — иначе SQLite откажет по внешнему ключу и упадёт весь импорт.
+     */
+    suspend fun importJson(text: String): ImportReport {
+        val archive = BackupJson.decode(text)
+            ?: throw IllegalArgumentException("это не архив meow meow записей")
+
+        val orderIds = archive.orders.mapTo(mutableSetOf()) { it.id }
+        orderIds += dao.allOrders().map { it.id }
+
+        val photos = archive.photos.filter { photo ->
+            photo.orderId in orderIds && PhotoStore.file(appContext, photo.fileName).isFile
+        }
+        val data = archive.copy(
+            checklist = archive.checklist.filter { it.orderId in orderIds },
+            parts = archive.parts.filter { it.orderId in orderIds },
+            photos = photos,
+        )
+        dao.restore(data)
+
+        return ImportReport(
+            orders = data.orders.size,
+            checklist = data.checklist.size,
+            parts = data.parts.size,
+            photos = data.photos.size,
+            photosMissing = archive.photos.size - photos.size,
+        )
     }
 
     private suspend fun touch(orderId: Long) {

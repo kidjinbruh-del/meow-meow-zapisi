@@ -1,6 +1,7 @@
 package ru.meowmeow.notes
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.meowmeow.notes.domain.OrderStatus
@@ -42,8 +43,14 @@ class TextTest {
         assertEquals("Заказана запчасть", OrderStatus.PART_ORDERED.label)
         assertEquals(OrderStatus.DIAGNOSIS, OrderStatus.fromKey("unknown"))
         assertEquals(OrderStatus.DONE, OrderStatus.fromKey("done"))
+        assertEquals(OrderStatus.REFUSED, OrderStatus.fromKey("refused"))
+        assertEquals("Отказ", OrderStatus.REFUSED.short)
         assertTrue(OrderStatus.IN_PROGRESS.isActive)
-        assertTrue(!OrderStatus.DONE.isActive)
+        assertFalse(OrderStatus.DONE.isActive)
+        assertFalse(OrderStatus.REFUSED.isActive)
+        assertTrue(OrderStatus.DONE.isFinished)
+        assertTrue(OrderStatus.REFUSED.isFinished)
+        assertFalse(OrderStatus.IN_PROGRESS.isFinished)
     }
 
     @Test

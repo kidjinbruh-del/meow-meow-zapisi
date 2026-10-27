@@ -1,17 +1,25 @@
 package ru.meowmeow.notes.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.meowmeow.notes.data.AccentColor
+import ru.meowmeow.notes.data.AppSettings
+import ru.meowmeow.notes.data.ThemeMode
 import ru.meowmeow.notes.domain.OrderStatus
 
 /**
@@ -26,24 +34,94 @@ object Meow {
     val Line = Color(0xFFE2D9C9)
     val Brand = Color(0xFF2C4A45)
     val BrandDeep = Color(0xFF1C322E)
-    val Mint = Color(0xFFDCE7E1)
     val Amber = Color(0xFFB8792B)
     val AmberSoft = Color(0xFFF6E7CD)
+    val Blue = Color(0xFF40548F)
+    val BlueSoft = Color(0xFFE2E7F5)
     val Danger = Color(0xFFA63A2C)
 
-    val Diagnosis = Color(0xFF5B6C7D)
-    val DiagnosisSoft = Color(0xFFE4EAF0)
-    val Ordered = Color(0xFF40548F)
-    val OrderedSoft = Color(0xFFE2E7F5)
-    val Ready = Color(0xFF3D7A55)
-    val ReadySoft = Color(0xFFDDEBE1)
+    // Тёмная тема
+    val NightBackground = Color(0xFF101513)
+    val NightSurface = Color(0xFF171E1B)
+    val NightSurfaceVariant = Color(0xFF232D28)
+    val NightText = Color(0xFFEFE9DF)
+    val NightMuted = Color(0xFFA7B2AA)
+    val NightLine = Color(0xFF2C3731)
 }
 
-private val MeowColors = lightColorScheme(
-    primary = Meow.Brand,
+/** Цвета статусов, зависящие от темы. */
+@Immutable
+data class MeowPalette(
+    val diagnosis: Color,
+    val diagnosisSoft: Color,
+    val inProgress: Color,
+    val inProgressSoft: Color,
+    val ordered: Color,
+    val orderedSoft: Color,
+    val done: Color,
+    val doneSoft: Color,
+    val refused: Color,
+    val refusedSoft: Color,
+)
+
+private val LightPalette = MeowPalette(
+    diagnosis = Color(0xFF5B6C7D),
+    diagnosisSoft = Color(0xFFE4EAF0),
+    inProgress = Color(0xFF8A5A1E),
+    inProgressSoft = Color(0xFFF6E7CD),
+    ordered = Color(0xFF40548F),
+    orderedSoft = Color(0xFFE2E7F5),
+    done = Color(0xFF3D7A55),
+    doneSoft = Color(0xFFDDEBE1),
+    refused = Color(0xFF8A4B45),
+    refusedSoft = Color(0xFFF3DFDC),
+)
+
+private val DarkPalette = MeowPalette(
+    diagnosis = Color(0xFFA9C0D3),
+    diagnosisSoft = Color(0xFF24313B),
+    inProgress = Color(0xFFE3B36F),
+    inProgressSoft = Color(0xFF3B2E1C),
+    ordered = Color(0xFFAEBEEA),
+    orderedSoft = Color(0xFF26314C),
+    done = Color(0xFF93C9A9),
+    doneSoft = Color(0xFF1F3527),
+    refused = Color(0xFFE5A9A2),
+    refusedSoft = Color(0xFF3B2522),
+)
+
+val LocalMeowPalette = staticCompositionLocalOf { LightPalette }
+
+private fun accentPrimary(accent: AccentColor, dark: Boolean): Color = when (accent) {
+    AccentColor.GREEN -> if (dark) Color(0xFF9AC7B6) else Meow.Brand
+    AccentColor.AMBER -> if (dark) Color(0xFFE0A45A) else Color(0xFFA9671F)
+    AccentColor.BLUE -> if (dark) Color(0xFFA9BCEA) else Color(0xFF3A4E86)
+}
+
+private fun accentContainer(accent: AccentColor, dark: Boolean): Color = when (accent) {
+    AccentColor.GREEN -> if (dark) Color(0xFF2A403A) else Color(0xFFDCE7E1)
+    AccentColor.AMBER -> if (dark) Color(0xFF4A3720) else Meow.AmberSoft
+    AccentColor.BLUE -> if (dark) Color(0xFF2C3A5C) else Meow.BlueSoft
+}
+
+private fun accentOnContainer(accent: AccentColor, dark: Boolean): Color = when (accent) {
+    AccentColor.GREEN -> if (dark) Color(0xFFD7EDE3) else Meow.BrandDeep
+    AccentColor.AMBER -> if (dark) Color(0xFFF7DFC0) else Color(0xFF4A2E08)
+    AccentColor.BLUE -> if (dark) Color(0xFFDDE5F8) else Color(0xFF1A2544)
+}
+
+/** Цвет кружка в настройках оформления — одинаковый в обеих темах. */
+fun AccentColor.swatch(): Color = when (this) {
+    AccentColor.GREEN -> Meow.Brand
+    AccentColor.AMBER -> Meow.Amber
+    AccentColor.BLUE -> Meow.Blue
+}
+
+private fun lightScheme(accent: AccentColor) = lightColorScheme(
+    primary = accentPrimary(accent, dark = false),
     onPrimary = Color.White,
-    primaryContainer = Meow.Mint,
-    onPrimaryContainer = Meow.BrandDeep,
+    primaryContainer = accentContainer(accent, dark = false),
+    onPrimaryContainer = accentOnContainer(accent, dark = false),
     secondary = Meow.Amber,
     onSecondary = Color.White,
     secondaryContainer = Meow.AmberSoft,
@@ -60,6 +138,29 @@ private val MeowColors = lightColorScheme(
     onError = Color.White,
     errorContainer = Color(0xFFF6DCD7),
     onErrorContainer = Color(0xFF41120B),
+)
+
+private fun darkScheme(accent: AccentColor) = darkColorScheme(
+    primary = accentPrimary(accent, dark = true),
+    onPrimary = Color(0xFF10201B),
+    primaryContainer = accentContainer(accent, dark = true),
+    onPrimaryContainer = accentOnContainer(accent, dark = true),
+    secondary = Color(0xFFE0B27A),
+    onSecondary = Color(0xFF2A1A06),
+    secondaryContainer = Color(0xFF3B2E1C),
+    onSecondaryContainer = Color(0xFFF7DFC0),
+    background = Meow.NightBackground,
+    onBackground = Meow.NightText,
+    surface = Meow.NightSurface,
+    onSurface = Meow.NightText,
+    surfaceVariant = Meow.NightSurfaceVariant,
+    onSurfaceVariant = Meow.NightMuted,
+    outline = Color(0xFF6E7A73),
+    outlineVariant = Meow.NightLine,
+    error = Color(0xFFF2B8B5),
+    onError = Color(0xFF3B0A08),
+    errorContainer = Color(0xFF5A2622),
+    onErrorContainer = Color(0xFFF9DEDC),
 )
 
 private val MeowTypography = Typography(
@@ -145,27 +246,50 @@ private val MeowShapes = Shapes(
 )
 
 @Composable
-fun MeowTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = MeowColors,
-        typography = MeowTypography,
-        shapes = MeowShapes,
-        content = content,
-    )
+fun MeowTheme(
+    settings: AppSettings = AppSettings(),
+    content: @Composable () -> Unit,
+) {
+    val dark = when (settings.mode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val scheme = if (dark) darkScheme(settings.accent) else lightScheme(settings.accent)
+    val palette = if (dark) DarkPalette else LightPalette
+
+    CompositionLocalProvider(LocalMeowPalette provides palette) {
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = MeowTypography,
+            shapes = MeowShapes,
+            content = content,
+        )
+    }
 }
 
 /** Цвет полосы/текста статуса. */
-fun OrderStatus.tint(): Color = when (this) {
-    OrderStatus.DIAGNOSIS -> Meow.Diagnosis
-    OrderStatus.IN_PROGRESS -> Meow.Amber
-    OrderStatus.PART_ORDERED -> Meow.Ordered
-    OrderStatus.DONE -> Meow.Ready
+@Composable
+fun OrderStatus.tint(): Color {
+    val palette = LocalMeowPalette.current
+    return when (this) {
+        OrderStatus.DIAGNOSIS -> palette.diagnosis
+        OrderStatus.IN_PROGRESS -> palette.inProgress
+        OrderStatus.PART_ORDERED -> palette.ordered
+        OrderStatus.DONE -> palette.done
+        OrderStatus.REFUSED -> palette.refused
+    }
 }
 
 /** Подложка пилюли статуса. */
-fun OrderStatus.soft(): Color = when (this) {
-    OrderStatus.DIAGNOSIS -> Meow.DiagnosisSoft
-    OrderStatus.IN_PROGRESS -> Meow.AmberSoft
-    OrderStatus.PART_ORDERED -> Meow.OrderedSoft
-    OrderStatus.DONE -> Meow.ReadySoft
+@Composable
+fun OrderStatus.soft(): Color {
+    val palette = LocalMeowPalette.current
+    return when (this) {
+        OrderStatus.DIAGNOSIS -> palette.diagnosisSoft
+        OrderStatus.IN_PROGRESS -> palette.inProgressSoft
+        OrderStatus.PART_ORDERED -> palette.orderedSoft
+        OrderStatus.DONE -> palette.doneSoft
+        OrderStatus.REFUSED -> palette.refusedSoft
+    }
 }

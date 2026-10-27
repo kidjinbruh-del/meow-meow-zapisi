@@ -6,10 +6,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import ru.meowmeow.notes.data.AppDatabase
 import ru.meowmeow.notes.data.OrderRepository
+import ru.meowmeow.notes.data.SettingsStore
 
 class MeowApp : Application() {
 
     lateinit var repository: OrderRepository
+        private set
+
+    /** Тема и акцент: SharedPreferences + поток для UI. */
+    lateinit var settings: SettingsStore
         private set
 
     /**
@@ -22,5 +27,6 @@ class MeowApp : Application() {
         super.onCreate()
         val database = AppDatabase.create(this)
         repository = OrderRepository(this, database.orderDao())
+        settings = SettingsStore(this)
     }
 }

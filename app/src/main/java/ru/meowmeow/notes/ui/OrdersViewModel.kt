@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.meowmeow.notes.data.OrderCard
+import ru.meowmeow.notes.data.ImportReport
 import ru.meowmeow.notes.data.OrderRepository
 import ru.meowmeow.notes.domain.OrderStatus
 
@@ -23,6 +24,7 @@ data class OrdersUiState(
 ) {
     val activeCount: Int get() = cards.count { it.order.status.isActive }
     val doneCount: Int get() = cards.count { it.order.status == OrderStatus.DONE }
+    val refusedCount: Int get() = cards.count { it.order.status == OrderStatus.REFUSED }
     val hasFilters: Boolean get() = query.isNotBlank() || filter != null
 }
 
@@ -74,6 +76,12 @@ class OrdersViewModel(private val repository: OrderRepository) : ViewModel() {
             onCreated(repository.createOrder())
         }
     }
+
+    /** Снимок базы для файла: вызывается из экрана, пока открыт диалог сохранения. */
+    suspend fun exportText(): String = repository.exportJson()
+
+    /** Импорт из текста файла: ошибки разбора и записи ловит экран и показывает мастеру. */
+    suspend fun importText(text: String): ImportReport = repository.importJson(text)
 
     companion object {
         fun factory(repository: OrderRepository) = viewModelFactory {

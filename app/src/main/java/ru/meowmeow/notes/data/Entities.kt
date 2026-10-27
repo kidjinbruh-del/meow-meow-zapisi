@@ -86,6 +86,7 @@ data class PhotoEntity(
     val fileName: String,
     val caption: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    val isPinned: Boolean = false,
 )
 
 /** Строка главного экрана: заказ вместе со счётчиками для карточки. */

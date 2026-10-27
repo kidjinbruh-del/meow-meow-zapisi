@@ -4,8 +4,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,15 +26,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BrokenImage
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -67,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -96,7 +102,7 @@ import ru.meowmeow.notes.domain.OrderStatus
 import ru.meowmeow.notes.domain.checkedLabel
 import ru.meowmeow.notes.domain.formatWhen
 import ru.meowmeow.notes.domain.photosLabel
-import ru.meowmeow.notes.ui.theme.Meow
+import ru.meowmeow.notes.ui.theme.LocalMeowPalette
 import ru.meowmeow.notes.ui.theme.soft
 import ru.meowmeow.notes.ui.theme.tint
 import java.io.File
@@ -313,6 +319,7 @@ fun OrderDetailScreen(
                         photos = photos,
                         loaded = photosState != null,
                         onOpen = { photo -> viewer = photo },
+                        onPin = viewModel::setPhotosPinned,
                         onCamera = { shoot() },
                         onGallery = {
                             gallery.launch(
@@ -427,11 +434,17 @@ private fun StatusSection(status: OrderStatus, onSelect: (OrderStatus) -> Unit) 
 
 @Composable
 private fun StatusOption(status: OrderStatus, selected: Boolean, onClick: () -> Unit) {
-    val foreground = if (selected) Color.White else status.tint()
+    val tint = status.tint()
+    val foreground = when {
+        !selected -> tint
+        // Порог по светимости: на пастельных статусах тёмный текст читается лучше.
+        tint.luminance() > 0.21f -> Color(0xFF1F2421)
+        else -> Color.White
+    }
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) status.tint() else status.soft())
+            .background(if (selected) tint else status.soft())
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -442,7 +455,7 @@ private fun StatusOption(status: OrderStatus, selected: Boolean, onClick: () -> 
                 modifier = Modifier
                     .size(6.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(status.tint()),
+                    .background(tint),
             )
         }
         Text(
@@ -615,6 +628,7 @@ private fun PartRow(
     onRename: (PartEntity) -> Unit,
     onDelete: (PartEntity) -> Unit,
 ) {
+    val palette = LocalMeowPalette.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -625,7 +639,7 @@ private fun PartRow(
             checked = part.isBought,
             onCheckedChange = { checked -> onToggle(part, checked) },
             colors = CheckboxDefaults.colors(
-                checkedColor = Meow.Ready,
+                checkedColor = palette.done,
                 uncheckedColor = MaterialTheme.colorScheme.outline,
                 checkmarkColor = Color.White,
             ),
@@ -653,7 +667,7 @@ private fun PartRow(
                 Text(
                     text = if (part.isBought) "Куплено" else "Не куплено",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (part.isBought) Meow.Ready else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (part.isBought) palette.done else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -700,18 +714,72 @@ private fun PhotosSection(
     photos: List<PhotoEntity>,
     loaded: Boolean,
     onOpen: (PhotoEntity) -> Unit,
+    onPin: (List<PhotoEntity>, Boolean) -> Unit,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
 ) {
+    var selected by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    val selectionMode = selected.isNotEmpty()
+    val pinnedCount = photos.count { it.isPinned }
+
     SectionCard(
         title = "Фото",
-        subtitle = if (photos.isEmpty()) "до/после разборки" else photosLabel(photos.size),
+        subtitle = when {
+            !loaded -> null
+            photos.isEmpty() -> "до/после разборки"
+            selectionMode -> "выбрано: ${selected.size}"
+            pinnedCount > 0 -> "${photosLabel(photos.size)} · закреплено: $pinnedCount"
+            else -> photosLabel(photos.size)
+        },
     ) {
         if (!loaded) {
             SectionLoading("Загружаем фото…")
             return@SectionCard
         }
         if (photos.isNotEmpty()) {
+            if (selectionMode) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = {
+                            onPin(photos.filter { it.id in selected }, true)
+                            selected = emptySet()
+                        },
+                    ) {
+                        Text("Закрепить")
+                    }
+                    TextButton(
+                        onClick = {
+                            onPin(photos.filter { it.id in selected }, false)
+                            selected = emptySet()
+                        },
+                    ) {
+                        Text("Открепить")
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(
+                        onClick = { selected = emptySet() },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Отменить выбор",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "Удерживайте фото, чтобы выбрать несколько",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+
             photos.chunked(3).forEach { row ->
                 Row(
                     modifier = Modifier
@@ -720,10 +788,22 @@ private fun PhotosSection(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     row.forEach { photo ->
+                        val isSelected = photo.id in selected
                         PhotoCell(
                             photo = photo,
                             modifier = Modifier.weight(1f),
-                            onClick = { onOpen(photo) },
+                            selected = isSelected,
+                            selectionMode = selectionMode,
+                            onClick = {
+                                if (selectionMode) {
+                                    selected = if (isSelected) selected - photo.id else selected + photo.id
+                                } else {
+                                    onOpen(photo)
+                                }
+                            },
+                            onLongClick = {
+                                selected = if (isSelected) selected - photo.id else selected + photo.id
+                            },
                         )
                     }
                     repeat(3 - row.size) {
@@ -760,8 +840,16 @@ private fun PhotosSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PhotoCell(photo: PhotoEntity, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun PhotoCell(
+    photo: PhotoEntity,
+    modifier: Modifier = Modifier,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     val context = LocalContext.current
     val bitmap by produceState<ImageBitmap?>(initialValue = null, photo.fileName) {
         value = withContext(Dispatchers.IO) {
@@ -773,7 +861,7 @@ private fun PhotoCell(photo: PhotoEntity, modifier: Modifier = Modifier, onClick
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center,
     ) {
         val image = bitmap
@@ -791,6 +879,56 @@ private fun PhotoCell(photo: PhotoEntity, modifier: Modifier = Modifier, onClick
                 tint = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.size(22.dp),
             )
+        }
+
+        if (photo.isPinned) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(5.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = .92f))
+                    .padding(4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.PushPin,
+                    contentDescription = "Закреплено",
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        if (selectionMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (selected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = .28f)
+                        } else {
+                            Color.Black.copy(alpha = .18f)
+                        },
+                    ),
+            )
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Выбрано",
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
         }
     }
 }

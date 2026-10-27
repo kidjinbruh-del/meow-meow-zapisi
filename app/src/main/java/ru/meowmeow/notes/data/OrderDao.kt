@@ -3,7 +3,9 @@ package ru.meowmeow.notes.data
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -75,7 +77,7 @@ interface OrderDao {
 
     // --- фото ---
 
-    @Query("SELECT * FROM photos WHERE orderId = :orderId ORDER BY createdAt, id")
+    @Query("SELECT * FROM photos WHERE orderId = :orderId ORDER BY isPinned DESC, createdAt, id")
     fun observePhotos(orderId: Long): Flow<List<PhotoEntity>>
 
     @Query("SELECT * FROM photos WHERE orderId = :orderId")
@@ -87,6 +89,51 @@ interface OrderDao {
     @Query("UPDATE photos SET caption = :caption WHERE id = :id")
     suspend fun updatePhotoCaption(id: Long, caption: String)
 
+    @Query("UPDATE photos SET isPinned = :pinned WHERE id IN (:ids)")
+    suspend fun setPhotosPinned(ids: List<Long>, pinned: Boolean)
+
     @Query("DELETE FROM photos WHERE id = :id")
     suspend fun deletePhoto(id: Long)
+
+    // --- архив: снимок и восстановление ---
+
+    @Query("SELECT * FROM orders ORDER BY id")
+    suspend fun allOrders(): List<OrderEntity>
+
+    @Query("SELECT * FROM checklist_items ORDER BY id")
+    suspend fun allChecklist(): List<ChecklistItemEntity>
+
+    @Query("SELECT * FROM parts ORDER BY id")
+    suspend fun allParts(): List<PartEntity>
+
+    @Query("SELECT * FROM photos ORDER BY id")
+    suspend fun allPhotos(): List<PhotoEntity>
+
+    @Upsert
+    suspend fun upsertOrders(orders: List<OrderEntity>)
+
+    @Upsert
+    suspend fun upsertChecklist(items: List<ChecklistItemEntity>)
+
+    @Upsert
+    suspend fun upsertParts(parts: List<PartEntity>)
+
+    @Upsert
+    suspend fun upsertPhotos(photos: List<PhotoEntity>)
+
+    /**
+     * Восстановление одной транзакцией. Сначала заказы — на них ссылаются
+     * остальные таблицы, — потом вложенные записи.
+     *
+     * Именно `@Upsert`, а не `INSERT OR REPLACE`: REPLACE удаляет строку и
+     * вставляет заново, а удаление заказа каскадом снесло бы его чек-лист,
+     * запчасти и фото, которых нет в старом архиве. Upsert обновляет на месте.
+     */
+    @Transaction
+    suspend fun restore(data: BackupData) {
+        upsertOrders(data.orders)
+        upsertChecklist(data.checklist)
+        upsertParts(data.parts)
+        upsertPhotos(data.photos)
+    }
 }

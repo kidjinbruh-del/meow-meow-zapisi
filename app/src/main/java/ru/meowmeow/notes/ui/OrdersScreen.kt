@@ -1,5 +1,9 @@
 package ru.meowmeow.notes.ui
 
+import android.content.Context
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,11 +30,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Pets
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -45,10 +53,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -56,15 +70,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import ru.meowmeow.notes.data.AccentColor
+import ru.meowmeow.notes.data.AppSettings
+import ru.meowmeow.notes.data.ImportReport
 import ru.meowmeow.notes.data.OrderCard
 import ru.meowmeow.notes.data.OrderRepository
+import ru.meowmeow.notes.data.ThemeMode
 import ru.meowmeow.notes.domain.OrderStatus
 import ru.meowmeow.notes.domain.formatWhen
 import ru.meowmeow.notes.domain.partsLabel
 import ru.meowmeow.notes.domain.photosLabel
 import ru.meowmeow.notes.domain.problemPreview
-import ru.meowmeow.notes.ui.theme.Meow
 import ru.meowmeow.notes.ui.theme.tint
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Главный экран: поиск, фильтр по статусу и список карточек.
@@ -75,11 +98,63 @@ import ru.meowmeow.notes.ui.theme.tint
 fun OrdersScreen(
     repository: OrderRepository,
     onOpenOrder: (Long) -> Unit,
+    settings: AppSettings = AppSettings(),
+    onThemeMode: (ThemeMode) -> Unit = {},
+    onAccent: (AccentColor) -> Unit = {},
 ) {
     val viewModel: OrdersViewModel = viewModel(factory = OrdersViewModel.factory(repository))
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showThemeSheet by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Архив: сначала системный диалог выбора файла, затем одна операция.
+    // На Android 10+ доступ к чужому файлу идёт только через SAF (URI).
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val text = viewModel.exportText()
+                    withContext(Dispatchers.IO) {
+                        val stream = context.contentResolver.openOutputStream(uri)
+                            ?: error("не удалось открыть файл")
+                        stream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                    }
+                }.onSuccess {
+                    toast(context, "Архив сохранён")
+                }.onFailure { error ->
+                    toast(context, "Не удалось сохранить: ${error.message ?: "ошибка"}")
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val text = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)
+                            ?.use { it.readBytes().toString(Charsets.UTF_8) }
+                            ?: error("не удалось прочитать файл")
+                    }
+                    viewModel.importText(text)
+                }.onSuccess { report ->
+                    toast(context, report.summary())
+                }.onFailure { error ->
+                    toast(context, "Импорт не удался: ${error.message ?: "ошибка"}")
+                }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -101,7 +176,18 @@ fun OrdersScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item { Header(state) }
+            item {
+                Header(
+                    state = state,
+                    onOpenTheme = { showThemeSheet = true },
+                    onExport = { exportLauncher.launch(exportFileName()) },
+                    onImport = {
+                        importLauncher.launch(
+                            arrayOf("application/json", "text/plain", "application/octet-stream"),
+                        )
+                    },
+                )
+            }
 
             item {
                 OutlinedTextField(
@@ -173,17 +259,41 @@ fun OrdersScreen(
                 OrderRow(card = card, onClick = { onOpenOrder(card.order.id) })
             }
         }
+        }
+
+        if (showThemeSheet) {
+            ThemeOverlay(
+                settings = settings,
+                onMode = onThemeMode,
+                onAccent = onAccent,
+                onDismiss = { showThemeSheet = false },
+            )
+        }
     }
 }
 
 @Composable
-private fun Header(state: OrdersUiState) {
+private fun Header(
+    state: OrdersUiState,
+    onOpenTheme: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+) {
+    val summary = if (state.cards.isEmpty()) {
+        "Пока ни одного заказа"
+    } else {
+        buildString {
+            append("в работе: ${state.activeCount} · готово: ${state.doneCount}")
+            if (state.refusedCount > 0) append(" · отказ: ${state.refusedCount}")
+        }
+    }
+
     Column(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Rounded.Pets,
                 contentDescription = null,
-                tint = Meow.Amber,
+                tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(17.dp),
             )
             Spacer(Modifier.width(8.dp))
@@ -192,20 +302,59 @@ private fun Header(state: OrdersUiState) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onOpenTheme, modifier = Modifier.size(34.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.Palette,
+                    contentDescription = "Оформление",
+                    modifier = Modifier.size(19.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            BackupMenu(onExport = onExport, onImport = onImport)
         }
         Spacer(Modifier.height(8.dp))
         Text(text = "Заказы", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = if (state.cards.isEmpty()) {
-                "Пока ни одного заказа"
-            } else {
-                "в работе: ${state.activeCount} · готово: ${state.doneCount} · всего: ${state.cards.size}"
-            },
+            text = summary,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** Меню архива: вынести базу в файл или влить файл обратно. */
+@Composable
+private fun BackupMenu(onExport: () -> Unit, onImport: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.size(34.dp)) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = "Архив заказов",
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Экспорт в файл") },
+                onClick = {
+                    open = false
+                    onExport()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Импорт из файла") },
+                onClick = {
+                    open = false
+                    onImport()
+                },
+            )
+        }
     }
 }
 
@@ -370,14 +519,14 @@ private fun EmptyState(hasFilters: Boolean, onReset: () -> Unit) {
             modifier = Modifier
                 .size(78.dp)
                 .clip(CircleShape)
-                .background(Meow.Mint),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Rounded.Pets,
                 contentDescription = null,
                 modifier = Modifier.size(34.dp),
-                tint = Meow.Brand,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
         Spacer(Modifier.height(18.dp))
@@ -402,4 +551,18 @@ private fun EmptyState(hasFilters: Boolean, onReset: () -> Unit) {
             TextButton(onClick = onReset) { Text("Сбросить фильтры") }
         }
     }
+}
+
+/** Имя по умолчанию в диалоге сохранения: дата, чтобы архивы не путались. */
+private fun exportFileName(): String =
+    "meow-meow-zapisi-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.json"
+
+private fun toast(context: Context, text: String) {
+    Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+}
+
+/** «Импорт: заказов 3, чек-листа 9, фото 1 · без файлов: 2» — по факту, а не по файлу. */
+private fun ImportReport.summary(): String = buildString {
+    append("Импорт: заказов $orders, чек-листа $checklist, запчастей $parts, фото $photos")
+    if (photosMissing > 0) append(" · без файлов: $photosMissing")
 }

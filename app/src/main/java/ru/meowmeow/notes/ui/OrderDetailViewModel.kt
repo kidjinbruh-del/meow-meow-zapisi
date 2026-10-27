@@ -129,6 +129,10 @@ class OrderDetailViewModel(
         viewModelScope.launch { repository.deletePhoto(photo) }
     }
 
+    fun setPhotosPinned(photos: List<PhotoEntity>, pinned: Boolean) {
+        viewModelScope.launch { repository.setPhotosPinned(photos, pinned) }
+    }
+
     /** Файл создаётся заранее: камера должна писать уже в готовый путь. */
     suspend fun newPhotoTarget(): File = withContext(Dispatchers.IO) {
         repository.newPhotoFile(orderId)
