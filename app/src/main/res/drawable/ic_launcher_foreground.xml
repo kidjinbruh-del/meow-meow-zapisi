@@ -1,26 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Иконка «meow meow записи»: лапа кота по центру холста.
+
+     Что изменилось и почему:
+     * лапа была сдвинута вниз (подушечка до y=90): края выходили за
+       безопасную зону адаптивной иконки (круг r=33 от центра 54,54) и
+       обрезались на круглых масках. Теперь вся композиция центрирована,
+       дальние точки — в радиусе 28;
+     * композиция наклонена на 8°: строго вертикальная лапа читалась
+       как клякса, наклон даёт живость без потери читаемости;
+     * подушечка шире, пальцы крупнее и разной величины, между ними
+       виден фон — на 48dp силуэт не сливается в пятно.
+
+     Холст 108×108. Безопасная зона — круг r=33 от (54,54). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Лапа: подушечка -->
-    <path
-        android:fillColor="#F4EFE6"
-        android:pathData="M54,63 C65,63 73,70.5 73,78.5 C73,86.5 65,90.5 54,90.5 C43,90.5 35,86.5 35,78.5 C35,70.5 43,63 54,63 Z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-8">
 
-    <!-- Пальцы -->
-    <path
-        android:fillColor="#F4EFE6"
-        android:pathData="M39,52.5 m-7.5,0 a7.5,7.5 0 1,0 15,0 a7.5,7.5 0 1,0 -15,0 Z" />
-    <path
-        android:fillColor="#F4EFE6"
-        android:pathData="M50.5,43.5 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 Z" />
-    <path
-        android:fillColor="#F4EFE6"
-        android:pathData="M62.5,43.5 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 Z" />
-    <path
-        android:fillColor="#F4EFE6"
-        android:pathData="M74,52.5 m-7.5,0 a7.5,7.5 0 1,0 15,0 a7.5,7.5 0 1,0 -15,0 Z" />
+        <!-- Пальцы: крайняя пара чуть меньше -->
+        <path
+            android:fillColor="#F4EFE6"
+            android:pathData="M36.5,41.5 m-6.4,0 a6.4,6.4 0 1,0 12.8,0 a6.4,6.4 0 1,0 -12.8,0 Z" />
+        <path
+            android:fillColor="#F4EFE6"
+            android:pathData="M47.8,35.8 m-6.9,0 a6.9,6.9 0 1,0 13.8,0 a6.9,6.9 0 1,0 -13.8,0 Z" />
+        <path
+            android:fillColor="#F4EFE6"
+            android:pathData="M60.2,35.8 m-6.9,0 a6.9,6.9 0 1,0 13.8,0 a6.9,6.9 0 1,0 -13.8,0 Z" />
+        <path
+            android:fillColor="#F4EFE6"
+            android:pathData="M71.5,41.5 m-6.4,0 a6.4,6.4 0 1,0 12.8,0 a6.4,6.4 0 1,0 -12.8,0 Z" />
+
+        <!-- Подушечка -->
+        <path
+            android:fillColor="#F4EFE6"
+            android:pathData="M54,46.5 C64.8,46.5 73.2,52.8 73.2,60.2 C73.2,67.8 64.6,73.2 54,73.2 C43.4,73.2 34.8,67.8 34.8,60.2 C34.8,52.8 43.2,46.5 54,46.5 Z" />
+
+    </group>
 </vector>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Фон иконки: мягкий диагональный градиент фирменного зелёного.
+     Раньше был плоский цвет — с градиентом иконка не сливается с
+     однотонными соседями по доку и выглядит «приложением», а не ярлыком. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="315"
+        android:startColor="#2C4A45"
+        android:endColor="#1E3330"
+        android:type="linear" />
+</shape>
