@@ -4,19 +4,9 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.TypeConverter
-import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import ru.meowmeow.notes.domain.OrderStatus
-
-class Converters {
-    @TypeConverter
-    fun fromStatus(status: OrderStatus): String = status.key
-
-    @TypeConverter
-    fun toStatus(key: String?): OrderStatus = OrderStatus.fromKey(key)
-}
+import ru.meowmeow.notes.domain.Section
 
 @Database(
     entities = [
@@ -25,10 +15,9 @@ class Converters {
         PartEntity::class,
         PhotoEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
-@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun orderDao(): OrderDao
 
@@ -45,10 +34,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Версия 3: колонка section разграничивает вкладки «Заказы / Админ /
+         * Брифы / Маркетинг». Все существующие записи остаются заказами.
+         * Статус и раньше хранился строкой-ключом, так что колонка не трогается.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE orders ADD COLUMN section TEXT NOT NULL DEFAULT '${Section.ORDERS.key}'",
+                )
+            }
+        }
+
         /** Одна база на приложение: SQLite лежит в приватном каталоге, интернет не нужен. */
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "meow-meow-notes.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 // Внешние ключи нужны, чтобы фото и пункты уходили вместе с заказом.
                 .build()
     }

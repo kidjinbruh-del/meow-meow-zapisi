@@ -3,13 +3,25 @@
 **Личный инструмент мастера по ремонту бытовой техники.** Заказы, клиенты, диагностика,
 запчасти, заметки и фото — всё в одном приложении, полностью офлайн.
 
+С версии 1.2.0 — вкладки под другие задачи:
+
+| Вкладка | Для чего | Статусы |
+| --- | --- | --- |
+| **Заказы** | ремонт бытовой техники | Диагностика · В работе · Ждёт запчасть · Готово · Отказ |
+| **Админ** | заметки сетевого и системного администратора | Заметка · Задача · В работе · Готово · Архив |
+| **Брифы** | брифы с диктофона — надиктуйте через 🎙, ИИ переведёт речь в текст | Новый · Записан · Расшифрован · Оформлен · Архив |
+| **Маркетинг** | идеи продвижения и их результат | Идея · В работе · Запущено · Результат · Архив |
+
+Диктовка работает через системное распознавание речи телефона (ИИ voice-to-text):
+кнопка 🎙 в блоке заметок, готовый текст дописывается в конец. Ключи и аккаунты не нужны.
+
 [![Android CI](https://github.com/kidjinbruh-del/meow-meow-zapisi/actions/workflows/android.yml/badge.svg)](https://github.com/kidjinbruh-del/meow-meow-zapisi/actions/workflows/android.yml)
 [![Release](https://img.shields.io/github/v/release/kidjinbruh-del/meow-meow-zapisi?display_name=tag&sort=semver)](https://github.com/kidjinbruh-del/meow-meow-zapisi/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![minSdk](https://img.shields.io/badge/minSdk-24-blue.svg)](app/build.gradle.kts)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg)](https://kotlinlang.org)
 
-[**Скачать APK 1.1.0**](https://github.com/kidjinbruh-del/meow-meow-zapisi/releases/latest/download/meow-meow-zapisi-1.1.0.apk) ·
+[**Скачать APK 1.2.0**](https://github.com/kidjinbruh-del/meow-meow-zapisi/releases/latest/download/meow-meow-zapisi-1.2.0.apk) ·
 [Скриншоты](#скриншоты) · [Архитектура](docs/ARCHITECTURE.md) · [База данных](docs/DATABASE.md) · [Дизайн](docs/DESIGN.md)
 
 ---

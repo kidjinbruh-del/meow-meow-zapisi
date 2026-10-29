@@ -13,38 +13,50 @@ import kotlinx.coroutines.launch
 import ru.meowmeow.notes.data.OrderCard
 import ru.meowmeow.notes.data.ImportReport
 import ru.meowmeow.notes.data.OrderRepository
-import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.Section
+import ru.meowmeow.notes.domain.StatusDef
 
 data class OrdersUiState(
+    val section: Section,
+    val statuses: List<StatusDef>,
     val cards: List<OrderCard> = emptyList(),
     val visible: List<OrderCard> = emptyList(),
     val query: String = "",
-    val filter: OrderStatus? = null,
+    val filter: StatusDef? = null,
     val loaded: Boolean = false,
 ) {
-    val activeCount: Int get() = cards.count { it.order.status.isActive }
-    val doneCount: Int get() = cards.count { it.order.status == OrderStatus.DONE }
-    val refusedCount: Int get() = cards.count { it.order.status == OrderStatus.REFUSED }
+    val activeCount: Int get() = cards.count { section.statusOf(it.order.status).active }
+    val doneCount: Int get() = cards.count { section.statusOf(it.order.status).finished }
+    val refusedCount: Int get() = cards.count {
+        it.order.status == "refused" || it.order.status == "archive"
+    }
     val hasFilters: Boolean get() = query.isNotBlank() || filter != null
 }
 
-class OrdersViewModel(private val repository: OrderRepository) : ViewModel() {
+class OrdersViewModel(
+    private val repository: OrderRepository,
+    private val section: Section,
+) : ViewModel() {
 
     private val query = MutableStateFlow("")
-    private val filter = MutableStateFlow<OrderStatus?>(null)
+    private val filter = MutableStateFlow<StatusDef?>(null)
 
     val state: StateFlow<OrdersUiState> =
-        combine(repository.cards, query, filter) { cards, currentQuery, currentFilter ->
+        combine(repository.cards(section.key), query, filter) { cards, currentQuery, currentFilter ->
             val needle = currentQuery.trim()
             val visible = cards.filter { card ->
                 val byText = needle.isEmpty() ||
                     card.order.model.contains(needle, ignoreCase = true) ||
                     card.order.clientName.contains(needle, ignoreCase = true) ||
-                    card.order.problem.contains(needle, ignoreCase = true)
-                val byStatus = currentFilter == null || card.order.status == currentFilter
+                    card.order.problem.contains(needle, ignoreCase = true) ||
+                    card.order.notes.contains(needle, ignoreCase = true)
+                val byStatus = currentFilter == null ||
+                    section.statusOf(card.order.status) == currentFilter
                 byText && byStatus
             }
             OrdersUiState(
+                section = section,
+                statuses = section.statuses,
                 cards = cards,
                 visible = visible,
                 query = currentQuery,
@@ -54,14 +66,14 @@ class OrdersViewModel(private val repository: OrderRepository) : ViewModel() {
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = OrdersUiState(),
+            initialValue = OrdersUiState(section = section, statuses = section.statuses),
         )
 
     fun setQuery(value: String) {
         query.value = value
     }
 
-    fun setFilter(value: OrderStatus?) {
+    fun setFilter(value: StatusDef?) {
         filter.value = value
     }
 
@@ -70,10 +82,10 @@ class OrdersViewModel(private val repository: OrderRepository) : ViewModel() {
         filter.value = null
     }
 
-    /** Заказ создаётся сразу в базе: карточка открывается уже с id. */
+    /** Карточка создаётся сразу в базе: она открывается уже с id. */
     fun createOrder(onCreated: (Long) -> Unit) {
         viewModelScope.launch {
-            onCreated(repository.createOrder())
+            onCreated(repository.createOrder(section.key))
         }
     }
 
@@ -84,8 +96,8 @@ class OrdersViewModel(private val repository: OrderRepository) : ViewModel() {
     suspend fun importText(text: String): ImportReport = repository.importJson(text)
 
     companion object {
-        fun factory(repository: OrderRepository) = viewModelFactory {
-            initializer { OrdersViewModel(repository) }
+        fun factory(repository: OrderRepository, section: Section) = viewModelFactory {
+            initializer { OrdersViewModel(repository, section) }
         }
     }
 }

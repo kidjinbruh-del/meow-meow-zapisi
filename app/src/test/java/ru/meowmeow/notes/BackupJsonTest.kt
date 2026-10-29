@@ -27,7 +27,7 @@ class BackupJsonTest {
                 clientName = "Анна Петрова",
                 clientContact = "+7 912 345-67-89",
                 problem = "Не отжимает, гудит при отжиме",
-                status = OrderStatus.PART_ORDERED,
+                status = OrderStatus.PART_ORDERED.key,
                 notes = "Ждём насос",
                 createdAt = 1_700_000_000_000,
                 updatedAt = 1_700_000_500_000,
@@ -45,7 +45,7 @@ class BackupJsonTest {
         val restored = BackupJson.decode(BackupJson.encode(data))
 
         assertEquals(data, restored)
-        assertEquals(OrderStatus.PART_ORDERED, restored!!.orders.single().status)
+        assertEquals(OrderStatus.PART_ORDERED.key, restored!!.orders.single().status)
         assertTrue(restored.photos.single().isPinned)
     }
 
@@ -59,16 +59,19 @@ class BackupJsonTest {
     }
 
     @Test
-    fun statusIsReadByKeyByNameAndFallsBack() {
+    fun statusKeyPassesThroughVerbatim() {
         val byKey = decodeOrders("""{"id":1,"status":"in_progress"}""")
-        assertEquals(OrderStatus.IN_PROGRESS, byKey.single().status)
+        assertEquals(OrderStatus.IN_PROGRESS.key, byKey.single().status)
 
-        // Файл правили руками и написали имя константы, а не ключ.
-        val byName = decodeOrders("""{"id":2,"status":"DONE"}""")
-        assertEquals(OrderStatus.DONE, byName.single().status)
+        // Раздел тоже переносится: вкладка определяется на экране, а не в архиве.
+        val admin = decodeOrders("""{"id":2,"section":"admin","status":"task"}""")
+        assertEquals("admin", admin.single().section)
+        assertEquals("task", admin.single().status)
 
+        // Неизвестный ключ из старой версии не роняет импорт: экран покажет
+        // статус по умолчанию, но строка сохранится как есть.
         val unknown = decodeOrders("""{"id":3,"status":"архив"}""")
-        assertEquals(OrderStatus.DIAGNOSIS, unknown.single().status)
+        assertEquals("архив", unknown.single().status)
     }
 
     @Test

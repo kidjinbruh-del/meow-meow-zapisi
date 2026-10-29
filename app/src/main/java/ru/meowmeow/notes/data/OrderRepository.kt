@@ -3,6 +3,7 @@ package ru.meowmeow.notes.data
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import ru.meowmeow.notes.domain.Defaults
+import ru.meowmeow.notes.domain.Section
 import java.io.File
 
 /**
@@ -13,7 +14,7 @@ class OrderRepository(context: Context, private val dao: OrderDao) {
 
     private val appContext = context.applicationContext
 
-    val cards: Flow<List<OrderCard>> = dao.observeCards()
+    fun cards(section: String): Flow<List<OrderCard>> = dao.observeCards(section)
 
     fun observeOrder(id: Long): Flow<OrderEntity?> = dao.observeOrder(id)
     fun observeChecklist(orderId: Long): Flow<List<ChecklistItemEntity>> = dao.observeChecklist(orderId)
@@ -22,11 +23,16 @@ class OrderRepository(context: Context, private val dao: OrderDao) {
 
     suspend fun getOrder(id: Long): OrderEntity? = dao.getOrder(id)
 
-    /** Новый заказ сразу с тремя типовыми проверками — мастеру остаётся отмечать. */
-    suspend fun createOrder(): Long {
-        val id = dao.insertOrder(OrderEntity())
-        Defaults.checklist.forEachIndexed { index, label ->
-            dao.insertChecklist(ChecklistItemEntity(orderId = id, label = label, position = index))
+    /**
+     * Новая карточка в указанном разделе. Чек-лист с типовыми проверками
+     * нужен только заказам — в админ-заметках и брифах он только мешает.
+     */
+    suspend fun createOrder(section: String = Section.ORDERS.key): Long {
+        val id = dao.insertOrder(OrderEntity(section = section))
+        if (section == ru.meowmeow.notes.domain.Section.ORDERS.key) {
+            Defaults.checklist.forEachIndexed { index, label ->
+                dao.insertChecklist(ChecklistItemEntity(orderId = id, label = label, position = index))
+            }
         }
         return id
     }

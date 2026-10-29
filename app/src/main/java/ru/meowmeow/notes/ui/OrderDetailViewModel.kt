@@ -21,7 +21,7 @@ import ru.meowmeow.notes.data.OrderEntity
 import ru.meowmeow.notes.data.OrderRepository
 import ru.meowmeow.notes.data.PartEntity
 import ru.meowmeow.notes.data.PhotoEntity
-import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.StatusDef
 import java.io.File
 
 /**
@@ -69,9 +69,17 @@ class OrderDetailViewModel(
         }
     }
 
-    fun setStatus(status: OrderStatus) {
-        edit { it.copy(status = status) }
+    fun setStatus(status: StatusDef) {
+        edit { it.copy(status = status.key) }
         flush()
+    }
+
+    /** Дописать текст от ИИ-распознавания речи в конец заметки. */
+    fun appendToNotes(text: String) {
+        edit {
+            val current = it.notes
+            it.copy(notes = if (current.isBlank()) text else current + "\n" + text)
+        }
     }
 
     /** Сохранить немедленно: вызывается при выходе и сворачивании. */

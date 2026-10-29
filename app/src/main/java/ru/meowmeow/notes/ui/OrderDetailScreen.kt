@@ -54,6 +54,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -98,7 +99,8 @@ import ru.meowmeow.notes.data.PartEntity
 import ru.meowmeow.notes.data.PhotoEntity
 import ru.meowmeow.notes.data.PhotoStore
 import ru.meowmeow.notes.domain.Defaults
-import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.Section
+import ru.meowmeow.notes.domain.StatusDef
 import ru.meowmeow.notes.domain.checkedLabel
 import ru.meowmeow.notes.domain.formatWhen
 import ru.meowmeow.notes.domain.photosLabel
@@ -159,6 +161,8 @@ fun OrderDetailScreen(
     }
 
     val current = order
+    val section = Section.fromKey(current?.section)
+    val status = current?.let { section.statusOf(it.status) }
 
     fun shoot() {
         scope.launch {
@@ -180,7 +184,7 @@ fun OrderDetailScreen(
                 title = {
                     Column {
                         Text(
-                            text = current?.model?.ifBlank { "Новый заказ" } ?: "Заказ",
+                            text = current?.model?.ifBlank { section.createLabel } ?: section.label,
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -241,36 +245,45 @@ fun OrderDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
-                    StatusSection(status = current.status, onSelect = viewModel::setStatus)
+                    StatusSection(
+                        statuses = section.statuses,
+                        selected = status,
+                        onSelect = viewModel::setStatus,
+                    )
                 }
 
                 item {
-                    SectionCard(title = "Техника и клиент", subtitle = "обязательное") {
+                    SectionCard(
+                        title = section.titleCardLabel,
+                        subtitle = if (section.hasClientFields) "обязательное" else null,
+                    ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Field(
                                 value = current.model,
                                 onValueChange = { value -> viewModel.edit { it.copy(model = value) } },
-                                label = "Модель техники",
-                                placeholder = "LG WD-10480",
+                                label = section.titleLabel,
+                                placeholder = if (section.hasClientFields) "LG WD-10480" else "",
                             )
-                            Field(
-                                value = current.clientName,
-                                onValueChange = { value -> viewModel.edit { it.copy(clientName = value) } },
-                                label = "Имя клиента",
-                                placeholder = "Анна",
-                            )
-                            Field(
-                                value = current.clientContact,
-                                onValueChange = { value -> viewModel.edit { it.copy(clientContact = value) } },
-                                label = "Контакт",
-                                placeholder = "+7 900 000-00-00",
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
-                            )
+                            if (section.hasClientFields) {
+                                Field(
+                                    value = current.clientName,
+                                    onValueChange = { value -> viewModel.edit { it.copy(clientName = value) } },
+                                    label = "Имя клиента",
+                                    placeholder = "Анна",
+                                )
+                                Field(
+                                    value = current.clientContact,
+                                    onValueChange = { value -> viewModel.edit { it.copy(clientContact = value) } },
+                                    label = "Контакт",
+                                    placeholder = "+7 900 000-00-00",
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
+                                )
+                            }
                             Field(
                                 value = current.problem,
                                 onValueChange = { value -> viewModel.edit { it.copy(problem = value) } },
-                                label = "Проблема со слов клиента",
-                                placeholder = "Не отжимает, гудит при отжиме",
+                                label = section.problemLabel,
+                                placeholder = if (section.hasClientFields) "Не отжимает, гудит при отжиме" else "",
                                 singleLine = false,
                                 minLines = 3,
                             )
@@ -278,40 +291,39 @@ fun OrderDetailScreen(
                     }
                 }
 
-                item {
-                    ChecklistSection(
-                        items = checklist,
-                        loaded = checklistState != null,
-                        onToggle = viewModel::toggleChecklist,
-                        onDelete = viewModel::removeChecklist,
-                        onAdd = viewModel::addChecklist,
-                    )
-                }
-
-                item {
-                    PartsSection(
-                        items = parts,
-                        loaded = partsState != null,
-                        onToggle = viewModel::setPartBought,
-                        onMinus = { part -> viewModel.changeQuantity(part, -1) },
-                        onPlus = { part -> viewModel.changeQuantity(part, 1) },
-                        onRename = { part -> renaming = part },
-                        onDelete = viewModel::removePart,
-                        onAdd = { name -> viewModel.addPart(name) },
-                    )
-                }
-
-                item {
-                    SectionCard(title = "Заметки", subtitle = "сохраняется само") {
-                        Field(
-                            value = current.notes,
-                            onValueChange = { value -> viewModel.edit { it.copy(notes = value) } },
-                            label = "Ход ремонта",
-                            placeholder = "Купил аналог, не подошел…",
-                            singleLine = false,
-                            minLines = 4,
+                if (section.hasChecklist) {
+                    item {
+                        ChecklistSection(
+                            items = checklist,
+                            loaded = checklistState != null,
+                            onToggle = viewModel::toggleChecklist,
+                            onDelete = viewModel::removeChecklist,
+                            onAdd = viewModel::addChecklist,
                         )
                     }
+                }
+
+                if (section.hasParts) {
+                    item {
+                        PartsSection(
+                            items = parts,
+                            loaded = partsState != null,
+                            onToggle = viewModel::setPartBought,
+                            onMinus = { part -> viewModel.changeQuantity(part, -1) },
+                            onPlus = { part -> viewModel.changeQuantity(part, 1) },
+                            onRename = { part -> renaming = part },
+                            onDelete = viewModel::removePart,
+                            onAdd = { name -> viewModel.addPart(name) },
+                        )
+                    }
+                }
+
+                item {
+                    NotesSection(
+                        notes = current.notes,
+                        section = section,
+                        onNotesChange = { value -> viewModel.edit { it.copy(notes = value) } },
+                    )
                 }
 
                 item {
@@ -415,16 +427,20 @@ fun OrderDetailScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StatusSection(status: OrderStatus, onSelect: (OrderStatus) -> Unit) {
-    SectionCard(title = "Статус ремонта", subtitle = status.label) {
+private fun StatusSection(
+    statuses: List<StatusDef>,
+    selected: StatusDef?,
+    onSelect: (StatusDef) -> Unit,
+) {
+    SectionCard(title = "Статус", subtitle = selected?.label ?: "") {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OrderStatus.entries.forEach { option ->
+            statuses.forEach { option ->
                 StatusOption(
                     status = option,
-                    selected = option == status,
+                    selected = option == selected,
                     onClick = { onSelect(option) },
                 )
             }
@@ -433,7 +449,7 @@ private fun StatusSection(status: OrderStatus, onSelect: (OrderStatus) -> Unit) 
 }
 
 @Composable
-private fun StatusOption(status: OrderStatus, selected: Boolean, onClick: () -> Unit) {
+private fun StatusOption(status: StatusDef, selected: Boolean, onClick: () -> Unit) {
     val tint = status.tint()
     val foreground = when {
         !selected -> tint
@@ -706,6 +722,109 @@ private fun PartRow(
                 }
             }
         }
+    }
+}
+
+/**
+ * Заметки с ИИ-диктовкой: микрофон запускает системное распознавание речи,
+ * готовый текст дописывается в конец заметки.
+ */
+@Composable
+private fun NotesSection(
+    notes: String,
+    section: Section,
+    onNotesChange: (String) -> Unit,
+) {
+    val context = LocalContext.current
+
+    var voiceError by remember { mutableStateOf<String?>(null) }
+    val latestNotes by androidx.compose.runtime.rememberUpdatedState(notes)
+    val latestCallback by androidx.compose.runtime.rememberUpdatedState(onNotesChange)
+    val voice = remember { VoiceRecognizer(context) { text ->
+        val clean = text.removeSuffix(".")
+        latestCallback(if (latestNotes.isBlank()) clean else latestNotes + "\n" + clean)
+    } }
+    val voiceState by voice.state.collectAsStateWithLifecycle()
+
+    val micPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) voice.start() else voiceError = "Нужно разрешение на микрофон"
+    }
+
+    androidx.compose.runtime.LaunchedEffect(voiceState.error) {
+        voiceState.error?.let {
+            voiceError = it
+            voice.stop()
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { voice.stop() }
+    }
+
+    SectionCard(title = "Заметки", subtitle = "сохраняется само") {
+        if (voice.available) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = section.notesLabel, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = when {
+                            voiceState.listening && voiceState.partial.isNotEmpty() ->
+                                "ИИ слышит: " + voiceState.partial.take(48) + "…"
+                            voiceState.listening -> "Слушаю — говорите"
+                            else -> "нажмите микрофон и говорите"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                SmallFloatingActionButton(
+                    onClick = {
+                        if (voiceState.listening) {
+                            voice.stop()
+                        } else {
+                            micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    containerColor = if (voiceState.listening) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    contentColor = if (voiceState.listening) {
+                        MaterialTheme.colorScheme.onError
+                    } else {
+                        MaterialTheme.colorScheme.onPrimary
+                    },
+                ) {
+                    Text(text = if (voiceState.listening) "■" else "🎙")
+                }
+            }
+            if (voiceError != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = voiceError.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        } else {
+            Text(text = section.notesLabel, style = MaterialTheme.typography.titleSmall)
+        }
+        Field(
+            value = notes,
+            onValueChange = onNotesChange,
+            label = section.notesLabel,
+            placeholder = when (section) {
+                Section.BRIEFS -> "Надиктуйте: задача, срок, бюджет…"
+                Section.ADMIN -> "Команды, конфиги, что проверено…"
+                Section.MARKETING -> "Где публикуем, когда, что ожидаем…"
+                else -> "Купил аналог, не подошел…"
+            },
+            singleLine = false,
+            minLines = 4,
+        )
     }
 }
 

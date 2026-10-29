@@ -21,6 +21,8 @@ import ru.meowmeow.notes.data.AccentColor
 import ru.meowmeow.notes.data.AppSettings
 import ru.meowmeow.notes.data.ThemeMode
 import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.StatusDef
+import ru.meowmeow.notes.domain.StatusTint
 
 /**
  * Палитра «мастерская»: тёплая бумага вместо белого, графитовый зелёный вместо
@@ -62,6 +64,10 @@ data class MeowPalette(
     val doneSoft: Color,
     val refused: Color,
     val refusedSoft: Color,
+    val purple: Color,
+    val purpleSoft: Color,
+    val teal: Color,
+    val tealSoft: Color,
 )
 
 private val LightPalette = MeowPalette(
@@ -75,6 +81,10 @@ private val LightPalette = MeowPalette(
     doneSoft = Color(0xFFDDEBE1),
     refused = Color(0xFF8A4B45),
     refusedSoft = Color(0xFFF3DFDC),
+    purple = Color(0xFF6B4FA1),
+    purpleSoft = Color(0xFFEAE3F6),
+    teal = Color(0xFF2F6E68),
+    tealSoft = Color(0xFFDCEEEC),
 )
 
 private val DarkPalette = MeowPalette(
@@ -88,6 +98,10 @@ private val DarkPalette = MeowPalette(
     doneSoft = Color(0xFF1F3527),
     refused = Color(0xFFE5A9A2),
     refusedSoft = Color(0xFF3B2522),
+    purple = Color(0xFFC4B2EA),
+    purpleSoft = Color(0xFF2E2440),
+    teal = Color(0xFF9CCFC8),
+    tealSoft = Color(0xFF1C302D),
 )
 
 val LocalMeowPalette = staticCompositionLocalOf { LightPalette }
@@ -281,6 +295,36 @@ fun OrderStatus.tint(): Color {
     }
 }
 
+/** Цвет статуса раздела — по семантике, а не по конкретному статусу. */
+@Composable
+fun StatusTint.tint(): Color {
+    val palette = LocalMeowPalette.current
+    return when (this) {
+        StatusTint.GRAY -> palette.diagnosis
+        StatusTint.AMBER -> palette.inProgress
+        StatusTint.BLUE -> palette.ordered
+        StatusTint.GREEN -> palette.done
+        StatusTint.RED -> palette.refused
+        StatusTint.PURPLE -> palette.purple
+        StatusTint.TEAL -> palette.teal
+    }
+}
+
+/** Подложка статуса раздела. */
+@Composable
+fun StatusTint.soft(): Color {
+    val palette = LocalMeowPalette.current
+    return when (this) {
+        StatusTint.GRAY -> palette.diagnosisSoft
+        StatusTint.AMBER -> palette.inProgressSoft
+        StatusTint.BLUE -> palette.orderedSoft
+        StatusTint.GREEN -> palette.doneSoft
+        StatusTint.RED -> palette.refusedSoft
+        StatusTint.PURPLE -> palette.purpleSoft
+        StatusTint.TEAL -> palette.tealSoft
+    }
+}
+
 /** Подложка пилюли статуса. */
 @Composable
 fun OrderStatus.soft(): Color {
@@ -293,3 +337,11 @@ fun OrderStatus.soft(): Color {
         OrderStatus.REFUSED -> palette.refusedSoft
     }
 }
+
+/** Цвет статуса раздела. */
+@Composable
+fun StatusDef.tint(): Color = tint.tint()
+
+/** Подложка статуса раздела. */
+@Composable
+fun StatusDef.soft(): Color = tint.soft()

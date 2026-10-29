@@ -2,7 +2,6 @@ package ru.meowmeow.notes.data
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import ru.meowmeow.notes.domain.OrderStatus
 
 /**
  * JSON-архив заказов.
@@ -61,19 +60,15 @@ object BackupJson {
      */
     private fun String.bareName(): String = replace('\\', '/').substringAfterLast('/').trim()
 
-    /** Ключ из базы, но принимаем и имя константы — файл правят руками. */
-    private fun statusOf(raw: String): OrderStatus =
-        OrderStatus.entries.firstOrNull { it.key == raw }
-            ?: OrderStatus.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
-            ?: OrderStatus.DIAGNOSIS
-
+    /** Статус и раздел хранятся строками-ключами: неизвестные просто переносятся. */
     private fun OrderEntity.toDto() = OrderDto(
         id = id,
+        section = section,
         model = model,
         clientName = clientName,
         clientContact = clientContact,
         problem = problem,
-        status = status.key,
+        status = status,
         notes = notes,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -81,11 +76,12 @@ object BackupJson {
 
     private fun OrderDto.toEntity() = OrderEntity(
         id = id,
+        section = section,
         model = model,
         clientName = clientName,
         clientContact = clientContact,
         problem = problem,
-        status = statusOf(status),
+        status = status,
         notes = notes,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -164,11 +160,12 @@ private data class ArchiveDto(
 @Serializable
 private data class OrderDto(
     val id: Long = 0,
+    val section: String = "orders",
     val model: String = "",
     val clientName: String = "",
     val clientContact: String = "",
     val problem: String = "",
-    val status: String = OrderStatus.DIAGNOSIS.key,
+    val status: String = "diagnosis",
     val notes: String = "",
     val createdAt: Long = 0,
     val updatedAt: Long = 0,

@@ -5,20 +5,21 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.Section
 
 /**
- * Заказ — одна единица техники в ремонте.
- * Текстовые поля намеренно не ограничены по длине: мастер пишет как удобно.
+ * Заказ — одна единица техники в ремонте. Раздел (orders/admin/briefs/marketing)
+ * отличает вкладки главного экрана; текстовые поля не ограничены по длине.
  */
 @Entity(tableName = "orders")
 data class OrderEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val section: String = Section.ORDERS.key,
     val model: String = "",
     val clientName: String = "",
     val clientContact: String = "",
     val problem: String = "",
-    val status: OrderStatus = OrderStatus.DIAGNOSIS,
+    val status: String = Section.ORDERS.defaultStatus.key,
     val notes: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),

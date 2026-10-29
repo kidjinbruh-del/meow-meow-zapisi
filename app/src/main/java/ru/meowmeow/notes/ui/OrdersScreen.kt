@@ -7,11 +7,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -79,7 +81,8 @@ import ru.meowmeow.notes.data.ImportReport
 import ru.meowmeow.notes.data.OrderCard
 import ru.meowmeow.notes.data.OrderRepository
 import ru.meowmeow.notes.data.ThemeMode
-import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.Section
+import ru.meowmeow.notes.domain.StatusDef
 import ru.meowmeow.notes.domain.formatWhen
 import ru.meowmeow.notes.domain.partsLabel
 import ru.meowmeow.notes.domain.photosLabel
@@ -90,8 +93,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Главный экран: поиск, фильтр по статусу и список карточек.
- * Кнопка «+» создаёт заказ и сразу открывает его карточку.
+ * Главный экран: вкладки разделов, поиск, фильтр по статусу раздела и список карточек.
+ * Кнопка «+» создаёт карточку в текущем разделе и сразу открывает её.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -102,7 +105,11 @@ fun OrdersScreen(
     onThemeMode: (ThemeMode) -> Unit = {},
     onAccent: (AccentColor) -> Unit = {},
 ) {
-    val viewModel: OrdersViewModel = viewModel(factory = OrdersViewModel.factory(repository))
+    var section by rememberSaveable { mutableStateOf(Section.ORDERS) }
+    val viewModel: OrdersViewModel = viewModel(
+        key = "orders-${section.key}",
+        factory = OrdersViewModel.factory(repository, section),
+    )
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
 
@@ -162,7 +169,7 @@ fun OrdersScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                text = { Text("Новый заказ", fontWeight = FontWeight.SemiBold) },
+                text = { Text(section.createLabel, fontWeight = FontWeight.SemiBold) },
             )
         },
     ) { innerPadding ->
@@ -190,11 +197,20 @@ fun OrdersScreen(
             }
 
             item {
+                SectionTabs(
+                    selected = section,
+                    onSelect = {
+                        section = it
+                    },
+                )
+            }
+
+            item {
                 OutlinedTextField(
                     value = state.query,
                     onValueChange = viewModel::setQuery,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Модель, клиент или симптом") },
+                    placeholder = { Text(section.searchHint) },
                     leadingIcon = {
                         Icon(
                             Icons.Rounded.Search,
@@ -234,7 +250,7 @@ fun OrdersScreen(
                         selected = state.filter == null,
                         onClick = { viewModel.setFilter(null) },
                     )
-                    OrderStatus.entries.forEach { status ->
+                    state.statuses.forEach { status ->
                         StatusFilterChip(
                             label = status.short,
                             selected = state.filter == status,
@@ -250,13 +266,18 @@ fun OrdersScreen(
                 item {
                     EmptyState(
                         hasFilters = state.hasFilters,
+                        emptyText = section.emptyText,
                         onReset = viewModel::resetFilters,
                     )
                 }
             }
 
             items(state.visible, key = { it.order.id }) { card ->
-                OrderRow(card = card, onClick = { onOpenOrder(card.order.id) })
+                OrderRow(
+                    card = card,
+                    section = section,
+                    onClick = { onOpenOrder(card.order.id) },
+                )
             }
         }
         }
@@ -272,6 +293,46 @@ fun OrdersScreen(
     }
 }
 
+/** Вкладки разделов: заказы мастера, заметки админа, брифы с диктофона, маркетинг. */
+@Composable
+private fun SectionTabs(selected: Section, onSelect: (Section) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+            .horizontalScroll(rememberScrollState())
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Section.entries.forEach { candidate ->
+            val isSelected = candidate == selected
+            Text(
+                text = candidate.label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            Color.Transparent
+                        },
+                    )
+                    .clickable { onSelect(candidate) }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun Header(
     state: OrdersUiState,
@@ -280,11 +341,11 @@ private fun Header(
     onImport: () -> Unit,
 ) {
     val summary = if (state.cards.isEmpty()) {
-        "Пока ни одного заказа"
+        "Пока пусто"
     } else {
         buildString {
-            append("в работе: ${state.activeCount} · готово: ${state.doneCount}")
-            if (state.refusedCount > 0) append(" · отказ: ${state.refusedCount}")
+            append("в работе: ${state.activeCount} · закрыто: ${state.doneCount}")
+            if (state.refusedCount > 0) append(" · архив/отказ: ${state.refusedCount}")
         }
     }
 
@@ -315,7 +376,7 @@ private fun Header(
             BackupMenu(onExport = onExport, onImport = onImport)
         }
         Spacer(Modifier.height(8.dp))
-        Text(text = "Заказы", style = MaterialTheme.typography.headlineLarge)
+        Text(text = state.section.label, style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(6.dp))
         Text(
             text = summary,
@@ -334,7 +395,7 @@ private fun BackupMenu(onExport: () -> Unit, onImport: () -> Unit) {
         IconButton(onClick = { open = true }, modifier = Modifier.size(34.dp)) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,
-                contentDescription = "Архив заказов",
+                contentDescription = "Архив записей",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -381,8 +442,13 @@ private fun StatusFilterChip(label: String, selected: Boolean, onClick: () -> Un
 }
 
 @Composable
-private fun OrderRow(card: OrderCard, onClick: () -> Unit) {
+private fun OrderRow(
+    card: OrderCard,
+    section: Section,
+    onClick: () -> Unit,
+) {
     val order = card.order
+    val status = section.statusOf(order.status)
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -400,7 +466,7 @@ private fun OrderRow(card: OrderCard, onClick: () -> Unit) {
                 modifier = Modifier
                     .width(5.dp)
                     .fillMaxHeight()
-                    .background(order.status.tint()),
+                    .background(status.tint()),
             )
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
@@ -411,26 +477,28 @@ private fun OrderRow(card: OrderCard, onClick: () -> Unit) {
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Spacer(Modifier.height(3.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = order.clientName.ifBlank { "Клиент не указан" },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                        if (section.hasClientFields) {
+                            Spacer(Modifier.height(3.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = order.clientName.ifBlank { "Клиент не указан" },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.width(8.dp))
-                    StatusPill(order.status)
+                    StatusPill(status)
                 }
 
                 val preview = problemPreview(order.problem)
@@ -452,7 +520,7 @@ private fun OrderRow(card: OrderCard, onClick: () -> Unit) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (card.partsCount > 0) {
+                    if (section.hasParts && card.partsCount > 0) {
                         MetaDot()
                         Text(
                             text = partsLabel(card.partsCount),
@@ -508,7 +576,7 @@ private fun LoadingLine() {
 }
 
 @Composable
-private fun EmptyState(hasFilters: Boolean, onReset: () -> Unit) {
+private fun EmptyState(hasFilters: Boolean, emptyText: String, onReset: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -539,7 +607,7 @@ private fun EmptyState(hasFilters: Boolean, onReset: () -> Unit) {
             text = if (hasFilters) {
                 "Измените запрос или сбросьте фильтр"
             } else {
-                "Нажмите «Новый заказ» — карточка ремонта появится здесь"
+                emptyText
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

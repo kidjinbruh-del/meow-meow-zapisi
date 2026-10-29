@@ -55,6 +55,34 @@ class MigrationTest {
         database.close()
     }
 
+    @Test
+    fun migrate2To3AddsSectionColumnAndKeepsOrders() {
+        helper.createDatabase(TEST_DB, 2).apply {
+            execSQL(
+                """
+                INSERT INTO orders (id, model, clientName, clientContact, problem, status, notes, createdAt, updatedAt)
+                VALUES (1, 'LG WD-10480', 'Анна', '', 'Не отжимает', 'in_progress', '', 100, 100)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            TEST_DB,
+            3,
+            true,
+            AppDatabase.MIGRATION_1_2,
+            AppDatabase.MIGRATION_2_3,
+        )
+        database.query("SELECT model, section FROM orders WHERE id = 1").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("LG WD-10480", cursor.getString(0))
+            assertEquals("orders", cursor.getString(1))
+        }
+        database.close()
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
     }

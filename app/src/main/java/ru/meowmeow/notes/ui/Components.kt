@@ -37,7 +37,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
-import ru.meowmeow.notes.domain.OrderStatus
+import ru.meowmeow.notes.domain.StatusDef
 import ru.meowmeow.notes.ui.theme.soft
 import ru.meowmeow.notes.ui.theme.tint
 
@@ -96,7 +96,7 @@ fun SectionLoading(text: String = "Загружаем…") {
 
 /** Пилюля статуса: точка + короткая подпись. */
 @Composable
-fun StatusPill(status: OrderStatus, modifier: Modifier = Modifier) {
+fun StatusPill(status: StatusDef, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))

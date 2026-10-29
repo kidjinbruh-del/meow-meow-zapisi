@@ -18,10 +18,11 @@ interface OrderDao {
             (SELECT COUNT(*) FROM parts p WHERE p.orderId = o.id AND p.isBought = 1) AS partsBought,
             (SELECT COUNT(*) FROM photos ph WHERE ph.orderId = o.id) AS photosCount
         FROM orders o
+        WHERE o.section = :section
         ORDER BY o.updatedAt DESC
         """
     )
-    fun observeCards(): Flow<List<OrderCard>>
+    fun observeCards(section: String): Flow<List<OrderCard>>
 
     @Query("SELECT * FROM orders WHERE id = :id")
     fun observeOrder(id: Long): Flow<OrderEntity?>
