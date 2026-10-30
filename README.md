@@ -21,7 +21,7 @@
 [![minSdk](https://img.shields.io/badge/minSdk-24-blue.svg)](app/build.gradle.kts)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg)](https://kotlinlang.org)
 
-[**Скачать APK 1.2.0**](https://github.com/kidjinbruh-del/meow-meow-zapisi/releases/latest/download/meow-meow-zapisi-1.2.0.apk) ·
+[**Скачать APK 1.2.1**](https://github.com/kidjinbruh-del/meow-meow-zapisi/releases/latest/download/meow-meow-zapisi-1.2.1.apk) ·
 [Скриншоты](#скриншоты) · [Архитектура](docs/ARCHITECTURE.md) · [База данных](docs/DATABASE.md) · [Дизайн](docs/DESIGN.md)
 
 ---
